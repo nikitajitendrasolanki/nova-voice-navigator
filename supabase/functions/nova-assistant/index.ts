@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
@@ -56,15 +57,6 @@ function sendEmail(recipient: string, subject: string, body: string) {
   };
 }
 
-// Wikipedia search function
-function searchWikipedia(query: string) {
-  // Mock implementation
-  return {
-    title: query,
-    summary: `This is a mock summary for "${query}". In a real implementation, this would fetch actual data from Wikipedia's API.`
-  };
-}
-
 function processCommand(command: string) {
   command = command.toLowerCase();
   
@@ -88,24 +80,6 @@ function processCommand(command: string) {
       response: "Opening LinkedIn for you.",
       action: "SUGGEST_URL",
       data: "https://www.linkedin.com"
-    };
-  }
-  // Time commands
-  else if (command.includes('what is the time') || command.includes('current time') || command.includes('what time is it')) {
-    const now = new Date();
-    const currentTime = now.toLocaleTimeString();
-    return { 
-      response: `The current time is ${currentTime}`,
-      action: "SPEAK"
-    };
-  }
-  // Date commands
-  else if (command.includes('what is the date') || command.includes('today\'s date') || command.includes('what date is it')) {
-    const now = new Date();
-    const currentDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    return { 
-      response: `Today is ${currentDate}`,
-      action: "SPEAK"
     };
   }
   // Weather commands
@@ -150,102 +124,6 @@ function processCommand(command: string) {
       }
     };
   }
-  // Wikipedia commands
-  else if (command.includes('search for') || command.includes('wikipedia')) {
-    let query = command;
-    if (command.includes('search for')) {
-      query = command.split('search for')[1].trim();
-    } else if (command.includes('wikipedia')) {
-      query = command.replace('wikipedia', '').trim();
-    }
-    
-    const results = searchWikipedia(query);
-    return { 
-      response: `According to Wikipedia, ${results.summary}`,
-      action: "SPEAK" 
-    };
-  }
-  // Greeting commands
-  else if (command.includes('hello') || command.includes('hi') || command.includes('hey')) {
-    return { 
-      response: "Hello! How can I assist you today?",
-      action: "SPEAK" 
-    };
-  }
-  // Goodbye commands
-  else if (command.includes('goodbye') || command.includes('bye')) {
-    return { 
-      response: "Goodbye! Have a nice day!",
-      action: "SPEAK" 
-    };
-  }
-  // Help command
-  else if (command.includes('help') || command.includes('what can you do')) {
-    return {
-      response: "I can help with weather updates, news headlines, opening websites, telling the time and date, searching Wikipedia, and more. Just ask me what you need!",
-      action: "SPEAK"
-    };
-  }
-  // Music command (mock)
-  else if (command.includes('play music')) {
-    return {
-      response: "I would play music for you, but I'm currently running in a browser. You can open a music streaming service instead.",
-      action: "SPEAK",
-      data: {
-        suggestion: "https://open.spotify.com"
-      }
-    };
-  }
-  // Joke command
-  else if (command.includes('tell me a joke') || command.includes('joke')) {
-    const jokes = [
-      "Why don't scientists trust atoms? Because they make up everything!",
-      "Why did the scarecrow win an award? Because he was outstanding in his field!",
-      "What do you call a fish with no eyes? Fsh!",
-      "How does a penguin build its house? Igloos it together!",
-      "Why don't skeletons fight each other? They don't have the guts."
-    ];
-    
-    const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
-    return {
-      response: randomJoke,
-      action: "SPEAK"
-    };
-  }
-  // Calculator functionality
-  else if (command.includes('calculate') || 
-          command.includes('what is') && 
-          (command.includes('+') || command.includes('-') || 
-           command.includes('×') || command.includes('*') || 
-           command.includes('÷') || command.includes('/'))) {
-    
-    try {
-      // Extract the math expression
-      let expression = command.replace('calculate', '').replace('what is', '').trim();
-      
-      // Replace common math terms with operators
-      expression = expression.replace('plus', '+')
-                             .replace('minus', '-')
-                             .replace('times', '*')
-                             .replace('divided by', '/')
-                             .replace('×', '*')
-                             .replace('÷', '/');
-      
-      // Use Function constructor to safely evaluate the expression
-      // eslint-disable-next-line no-new-func
-      const result = new Function(`return ${expression}`)();
-      
-      return {
-        response: `The result of ${expression} is ${result}`,
-        action: "SPEAK"
-      };
-    } catch (error) {
-      return {
-        response: "Sorry, I couldn't calculate that. Please try a simpler expression.",
-        action: "SPEAK"
-      };
-    }
-  }
   // Default response
   else {
     return { 
@@ -262,28 +140,21 @@ serve(async (req) => {
   }
 
   try {
-    if (req.method === 'POST') {
-      const { command, userId } = await req.json() as CommandRequest;
-      
-      if (!command) {
-        return new Response(
-          JSON.stringify({ error: "Command is required" }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Process the command and get a response
-      const result = processCommand(command);
-      
+    const { command, userId } = await req.json() as CommandRequest;
+    
+    if (!command) {
       return new Response(
-        JSON.stringify(result),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Command is required" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Process the command and get a response
+    const result = processCommand(command);
     
     return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify(result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error("Error processing request:", error);

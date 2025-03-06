@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface CommandResponse {
@@ -151,6 +150,11 @@ export async function sendCommandToNova(command: string): Promise<CommandRespons
     });
     
     if (error) throw error;
+    
+    // Handle URL suggestions
+    if (data.action === "SUGGEST_URL" && data.data) {
+      window.open(data.data, "_blank");
+    }
     
     // Also store the command in the database
     await storeCommand(command, data.response);
