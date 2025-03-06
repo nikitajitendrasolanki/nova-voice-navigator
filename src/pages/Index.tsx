@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { MessageCircle, Mic, Speaker, Sparkles, Brain, Zap } from "lucide-react";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { MessageCircle, Mic, Speaker, Sparkles, Brain, Zap, Volume2, VolumeX } from "lucide-react";
 import NovaMic from "@/components/NovaMic";
 import WaveAnimation from "@/components/WaveAnimation";
 import FeatureCard from "@/components/FeatureCard";
 import MainLayout from "@/layouts/MainLayout";
 import { toast } from "sonner";
 import { getStaggerDelay } from "@/utils/animations";
-import { sendCommandToNova, speakText } from "@/components/NovaBackend";
+import { sendCommandToNova, speakText, setupSpeechRecognition } from "@/components/NovaBackend";
 
 const Index = () => {
   const [isListening, setIsListening] = useState(false);
@@ -14,26 +15,17 @@ const Index = () => {
   const [lastCommand, setLastCommand] = useState("");
   const [novaResponse, setNovaResponse] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [commandHistory, setCommandHistory] = useState<{command: string, response: string}[]>([]);
   
+  // Initialize speech recognition
   useEffect(() => {
+    setupSpeechRecognition();
     setFadeIn(true);
   }, []);
 
-  const handleMicToggle = async (active: boolean) => {
-    setIsListening(active);
-    if (active) {
-      toast.success("Nova is listening...");
-    } else {
-      const transcript = await navigator.clipboard.readText();
-      
-      if (transcript && transcript !== lastCommand) {
-        setLastCommand(transcript);
-        processVoiceCommand(transcript);
-      }
-    }
-  };
-
-  const processVoiceCommand = async (command: string) => {
+  // Process voice command
+  const processVoiceCommand = useCallback(async (command: string) => {
     try {
       setLastCommand(command);
       
@@ -41,7 +33,13 @@ const Index = () => {
       
       setNovaResponse(response.response);
       
-      if (response.action === "SPEAK") {
+      // Add to command history
+      setCommandHistory(prev => [
+        { command, response: response.response },
+        ...prev.slice(0, 4) // Keep only the 5 most recent commands
+      ]);
+      
+      if (response.action === "SPEAK" && isVoiceEnabled) {
         setIsSpeaking(true);
         await speakText(response.response);
         setIsSpeaking(false);
@@ -57,13 +55,41 @@ const Index = () => {
             </button>
           </div>
         );
+        
+        if (isVoiceEnabled) {
+          setIsSpeaking(true);
+          await speakText(response.response);
+          setIsSpeaking(false);
+        }
       }
     } catch (error) {
       console.error("Error processing voice command:", error);
       toast.error("Sorry, I encountered an error processing your request.");
     }
-  };
+  }, [isVoiceEnabled]);
 
+  // Handle microphone toggle
+  const handleMicToggle = useCallback((active: boolean) => {
+    setIsListening(active);
+    if (active) {
+      toast.success("Nova is listening...");
+    }
+  }, []);
+
+  // Handle voice command result
+  const handleVoiceResult = useCallback((transcript: string) => {
+    if (transcript && transcript !== lastCommand) {
+      processVoiceCommand(transcript);
+    }
+  }, [lastCommand, processVoiceCommand]);
+
+  // Toggle voice output
+  const toggleVoice = useCallback(() => {
+    setIsVoiceEnabled(prev => !prev);
+    toast.info(isVoiceEnabled ? "Voice output disabled" : "Voice output enabled");
+  }, [isVoiceEnabled]);
+
+  // List of features
   const features = [
     {
       icon: MessageCircle,
@@ -85,6 +111,15 @@ const Index = () => {
       title: "Lightning Fast",
       description: "Get instant responses with our optimized processing engine."
     }
+  ];
+
+  // Command examples to show in the UI
+  const commandExamples = [
+    "Hey Nova, what's the weather today?",
+    "Tell me the latest news",
+    "What time is it now?",
+    "Open LinkedIn for me",
+    "Tell me a joke"
   ];
 
   return (
@@ -112,8 +147,17 @@ const Index = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <button className="px-6 py-3 rounded-full bg-nova-600 text-white font-medium shadow-lg hover:bg-nova-700 transition-colors duration-300 hover:shadow-xl">
-                  Get Started for Free
+                <button 
+                  className="px-6 py-3 rounded-full bg-nova-600 text-white font-medium shadow-lg hover:bg-nova-700 transition-colors duration-300 hover:shadow-xl"
+                  onClick={() => {
+                    // Scroll to the assistant section
+                    const assistantSection = document.getElementById('assistant-card');
+                    if (assistantSection) {
+                      assistantSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
+                >
+                  Try Nova Now
                 </button>
                 <button className="px-6 py-3 rounded-full border border-nova-200 bg-white text-nova-600 font-medium hover:bg-nova-50 transition-colors duration-300">
                   See How It Works
@@ -121,32 +165,76 @@ const Index = () => {
               </div>
             </div>
             
-            <div className={`flex justify-center items-center ${fadeIn ? 'animate-fade-in' : 'opacity-0'}`} style={{ animationDelay: '300ms' }}>
-              <div className="relative bg-white p-10 rounded-3xl shadow-xl border border-gray-100 flex flex-col items-center animate-float">
-                <NovaMic size="lg" onToggle={handleMicToggle} />
-                <div className="mt-6 text-center">
+            <div 
+              id="assistant-card"
+              className={`flex justify-center items-center ${fadeIn ? 'animate-fade-in' : 'opacity-0'}`} 
+              style={{ animationDelay: '300ms' }}
+            >
+              <div className="relative bg-white p-6 md:p-10 rounded-3xl shadow-xl border border-gray-100 flex flex-col items-center animate-float w-full max-w-md">
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <button 
+                    onClick={toggleVoice} 
+                    className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                    title={isVoiceEnabled ? "Disable voice" : "Enable voice"}
+                  >
+                    {isVoiceEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                  </button>
+                </div>
+                
+                <NovaMic 
+                  size="lg" 
+                  onToggle={handleMicToggle} 
+                  onResult={handleVoiceResult}
+                />
+                
+                <div className="mt-6 text-center w-full">
                   <WaveAnimation isActive={isListening || isSpeaking} barCount={7} />
                   <p className="mt-4 text-lg font-medium text-gray-700">
                     {isListening ? "Listening..." : isSpeaking ? "Speaking..." : "Tap to speak"}
                   </p>
                   
                   {lastCommand && (
-                    <div className="mt-4 p-2 bg-gray-50 rounded-lg">
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg w-full text-left">
                       <p className="text-sm text-gray-500">You said:</p>
                       <p className="text-md font-medium">{lastCommand}</p>
                     </div>
                   )}
                   
                   {novaResponse && !isListening && (
-                    <div className="mt-4 p-2 bg-nova-50 rounded-lg text-left">
+                    <div className="mt-4 p-3 bg-nova-50 rounded-lg text-left w-full">
                       <p className="text-sm text-nova-600">Nova:</p>
                       <p className="text-md font-medium">{novaResponse}</p>
                     </div>
                   )}
+                  
+                  {commandHistory.length > 0 && (
+                    <div className="mt-6 w-full">
+                      <p className="text-sm font-medium text-gray-500 mb-2 text-left">Recent interactions:</p>
+                      <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pr-2">
+                        {commandHistory.map((item, index) => (
+                          <div key={index} className="text-xs p-2 bg-gray-50 rounded border border-gray-100">
+                            <p className="font-medium">You: {item.command}</p>
+                            <p className="text-nova-600">Nova: {item.response}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-nova-50 rounded-full border border-nova-100 text-sm font-medium text-nova-700">
-                  "Hey Nova, what's the weather today?"
+                <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2">
+                  <div className="relative">
+                    <button 
+                      className="px-4 py-2 bg-nova-50 rounded-full border border-nova-100 text-sm font-medium text-nova-700 hover:bg-nova-100 transition-colors"
+                      onClick={() => {
+                        // Pick a random example
+                        const randomExample = commandExamples[Math.floor(Math.random() * commandExamples.length)];
+                        processVoiceCommand(randomExample.replace("Hey Nova, ", ""));
+                      }}
+                    >
+                      Try an example command
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -172,6 +260,67 @@ const Index = () => {
                 description={feature.description}
                 delay={getStaggerDelay(index, 100)}
               />
+            ))}
+          </div>
+        </div>
+      </section>
+      
+      <section id="command-examples" className="py-20 bg-white">
+        <div className="container max-w-6xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Try These Commands</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Here are some examples of what you can ask Nova to do.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                category: "Information",
+                examples: [
+                  "What time is it?",
+                  "What's the weather today?",
+                  "Tell me the latest news"
+                ]
+              },
+              {
+                category: "Navigation",
+                examples: [
+                  "Open Google",
+                  "Open YouTube",
+                  "Open LinkedIn"
+                ]
+              },
+              {
+                category: "Fun",
+                examples: [
+                  "Tell me a joke",
+                  "Calculate 24 times 7",
+                  "Search for renewable energy on Wikipedia"
+                ]
+              }
+            ].map((category, index) => (
+              <div 
+                key={index} 
+                className="bg-white p-6 rounded-xl shadow-md border border-gray-100 hover:shadow-lg transition-shadow"
+              >
+                <h3 className="text-xl font-semibold mb-4 text-nova-600">{category.category}</h3>
+                <ul className="space-y-3">
+                  {category.examples.map((example, exIndex) => (
+                    <li key={exIndex} className="flex items-start gap-2">
+                      <button 
+                        className="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-nova-100 text-nova-600 hover:bg-nova-200 transition-colors flex items-center justify-center"
+                        onClick={() => processVoiceCommand(example)}
+                        title="Try this command"
+                      >
+                        <Mic size={12} />
+                      </button>
+                      <span className="text-gray-700">{example}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
           </div>
         </div>

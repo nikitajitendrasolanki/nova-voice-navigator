@@ -7,6 +7,103 @@ interface CommandResponse {
   data?: any;
 }
 
+// Speech recognition interface
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onerror: (event: any) => void;
+  onresult: (event: any) => void;
+  onend: () => void;
+}
+
+// Global variables for speech recognition
+let recognition: SpeechRecognition | null = null;
+let isListening = false;
+
+// Setup speech recognition
+export function setupSpeechRecognition() {
+  // Check if browser supports speech recognition
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    console.error("Speech recognition not supported in this browser");
+    return false;
+  }
+
+  // Initialize speech recognition
+  const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+  recognition = new SpeechRecognition() as SpeechRecognition;
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  return true;
+}
+
+// Function to start listening for voice commands
+export function startListening(onResult: (command: string) => void, onError?: (error: string) => void) {
+  if (!recognition) {
+    const isSupported = setupSpeechRecognition();
+    if (!isSupported) {
+      if (onError) onError("Speech recognition not supported");
+      return false;
+    }
+  }
+
+  if (isListening) {
+    return true; // Already listening
+  }
+
+  if (recognition) {
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      console.log("Recognized: ", transcript);
+      onResult(transcript);
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error", event);
+      isListening = false;
+      if (onError) onError(`Error: ${event.error}`);
+    };
+
+    recognition.onend = () => {
+      isListening = false;
+      console.log("Speech recognition ended");
+    };
+
+    try {
+      recognition.start();
+      isListening = true;
+      return true;
+    } catch (error) {
+      console.error("Error starting speech recognition:", error);
+      if (onError) onError(`Error starting speech recognition: ${error}`);
+      return false;
+    }
+  }
+
+  return false;
+}
+
+// Function to stop listening
+export function stopListening() {
+  if (recognition && isListening) {
+    recognition.stop();
+    isListening = false;
+    return true;
+  }
+  return false;
+}
+
+// Check if currently listening
+export function checkListeningStatus() {
+  return isListening;
+}
+
+// Send command to Nova backend
 export async function sendCommandToNova(command: string): Promise<CommandResponse> {
   try {
     const { data, error } = await supabase.functions.invoke('nova-assistant', {
@@ -28,6 +125,7 @@ export async function sendCommandToNova(command: string): Promise<CommandRespons
   }
 }
 
+// Store command in database
 async function storeCommand(command: string, response: string) {
   try {
     const { data: authData } = await supabase.auth.getUser();
