@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
@@ -92,7 +91,7 @@ function processCommand(command: string) {
     };
   }
   // Time commands
-  else if (command.includes('what is the time') || command.includes('current time')) {
+  else if (command.includes('what is the time') || command.includes('current time') || command.includes('what time is it')) {
     const now = new Date();
     const currentTime = now.toLocaleTimeString();
     return { 
@@ -101,7 +100,7 @@ function processCommand(command: string) {
     };
   }
   // Date commands
-  else if (command.includes('what is the date') || command.includes('today\'s date')) {
+  else if (command.includes('what is the date') || command.includes('today\'s date') || command.includes('what date is it')) {
     const now = new Date();
     const currentDate = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     return { 
@@ -130,7 +129,7 @@ function processCommand(command: string) {
     let response = "Here are the top headlines: ";
     
     news.forEach((article, index) => {
-      response += `${index + 1}. ${article.title} from ${article.source}. ${article.description} `;
+      response += `${index + 1}. ${article.title} from ${article.source}. `;
     });
     
     return { 
@@ -167,7 +166,7 @@ function processCommand(command: string) {
     };
   }
   // Greeting commands
-  else if (command.includes('hello') || command.includes('hi nova')) {
+  else if (command.includes('hello') || command.includes('hi') || command.includes('hey')) {
     return { 
       response: "Hello! How can I assist you today?",
       action: "SPEAK" 
@@ -217,8 +216,8 @@ function processCommand(command: string) {
   else if (command.includes('calculate') || 
           command.includes('what is') && 
           (command.includes('+') || command.includes('-') || 
-           command.includes('×') || command.includes('÷') || 
-           command.includes('*') || command.includes('/'))) {
+           command.includes('×') || command.includes('*') || 
+           command.includes('÷') || command.includes('/'))) {
     
     try {
       // Extract the math expression

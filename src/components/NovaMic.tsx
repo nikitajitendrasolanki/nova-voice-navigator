@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { startListening, stopListening, checkListeningStatus } from "./NovaBackend";
+import { startListening, stopListening, checkListeningStatus, speakText } from "./NovaBackend";
 
 interface NovaMicProps {
   className?: string;
@@ -18,6 +18,7 @@ const NovaMic: React.FC<NovaMicProps> = ({
   onResult
 }) => {
   const [isActive, setIsActive] = useState(false);
+  const [isWaitingForCommand, setIsWaitingForCommand] = useState(false);
 
   const sizeClasses = {
     sm: "h-10 w-10",
@@ -52,19 +53,60 @@ const NovaMic: React.FC<NovaMicProps> = ({
       // Stop listening
       if (stopListening()) {
         setIsActive(false);
+        setIsWaitingForCommand(false);
         if (onToggle) onToggle(false);
       }
     } else {
       // Start listening
       const success = startListening(
-        (text) => {
-          if (onResult) onResult(text);
-          setIsActive(false);
-          if (onToggle) onToggle(false);
+        async (text) => {
+          if (onResult) {
+            // Process the text result
+            if (isWaitingForCommand && !text.toLowerCase().startsWith("nova")) {
+              // User is responding to Nova's prompt for a command
+              onResult(text);
+              setIsWaitingForCommand(false);
+            } else if (text.toLowerCase() === "nova") {
+              // User just said "Nova", prompt for command
+              await speakText("Yes, how can I help you?");
+              setIsWaitingForCommand(true);
+              // Restart listening for the actual command
+              setTimeout(() => {
+                startListening(
+                  (commandText) => {
+                    if (onResult) onResult(commandText);
+                    setIsWaitingForCommand(false);
+                  },
+                  (error) => {
+                    console.error("Speech recognition error:", error);
+                    setIsWaitingForCommand(false);
+                  }
+                );
+              }, 1500);
+            } else if (text.toLowerCase().startsWith("nova ")) {
+              // If command starts with "Nova", remove "Nova" and process the rest
+              const command = text.substring(5).trim();
+              if (command) {
+                onResult(command);
+              } else {
+                setIsWaitingForCommand(true);
+                speakText("I'm listening. Please give me a command.");
+              }
+            } else {
+              // If no "Nova" prefix, process the command directly
+              onResult(text);
+            }
+          }
+          
+          if (!isWaitingForCommand) {
+            setIsActive(false);
+            if (onToggle) onToggle(false);
+          }
         },
         (error) => {
           console.error("Speech recognition error:", error);
           setIsActive(false);
+          setIsWaitingForCommand(false);
           if (onToggle) onToggle(false);
         }
       );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { MessageCircle, Mic, Speaker, Sparkles, Brain, Zap, Volume2, VolumeX } from "lucide-react";
 import NovaMic from "@/components/NovaMic";
@@ -28,6 +27,9 @@ const Index = () => {
   const processVoiceCommand = useCallback(async (command: string) => {
     try {
       setLastCommand(command);
+      
+      // Show toast notification that we're processing the command
+      toast.info("Processing your request...");
       
       const response = await sendCommandToNova(command);
       

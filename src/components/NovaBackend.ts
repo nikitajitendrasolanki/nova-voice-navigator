@@ -33,8 +33,9 @@ export function setupSpeechRecognition() {
   }
 
   // Initialize speech recognition
-  const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-  recognition = new SpeechRecognition() as SpeechRecognition;
+  // @ts-ignore - Using ignore for browser compatibility issues
+  const SpeechRecognitionAPI = window.webkitSpeechRecognition || window.SpeechRecognition;
+  recognition = new SpeechRecognitionAPI() as SpeechRecognition;
   recognition.continuous = false;
   recognition.interimResults = false;
   recognition.lang = 'en-US';
@@ -58,9 +59,48 @@ export function startListening(onResult: (command: string) => void, onError?: (e
 
   if (recognition) {
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
+      const transcript = event.results[0][0].transcript.trim().toLowerCase();
       console.log("Recognized: ", transcript);
-      onResult(transcript);
+      
+      // Check if command starts with "Nova" or user just said "Nova"
+      if (transcript.startsWith("nova")) {
+        // If user just said "Nova", prompt them to say a command
+        if (transcript === "nova") {
+          speakText("Yes, how can I help you?");
+          // Start listening again for the actual command
+          setTimeout(() => {
+            if (recognition) {
+              try {
+                recognition.start();
+              } catch (error) {
+                console.error("Error restarting speech recognition after wake word:", error);
+              }
+            }
+          }, 1000);
+        } else {
+          // Extract the command after "Nova"
+          const command = transcript.substring(5).trim();
+          if (command) {
+            onResult(command);
+          } else {
+            speakText("I'm listening. Please give me a command.");
+            // Start listening again
+            setTimeout(() => {
+              if (recognition) {
+                try {
+                  recognition.start();
+                } catch (error) {
+                  console.error("Error restarting speech recognition after empty command:", error);
+                }
+              }
+            }, 1000);
+          }
+        }
+      } else {
+        // If not prefixed with "Nova", still process the command
+        // This allows continuous conversation after initial "Nova" wake word
+        onResult(transcript);
+      }
     };
 
     recognition.onerror = (event) => {
